@@ -718,7 +718,7 @@ if generate_button and query:
             except Exception as e:
                 st.error(f"Service init error: {e}")
                 db, client = None, None
-                return  # Stop execution if services fail
+                st.stop()  # Stop execution if services fail
 
             # Build full query (topic + additional)
             full_query = query.strip()
@@ -764,7 +764,7 @@ if apply_refine and st.session_state.output and refine_instruction and refine_in
         except Exception as e:
             st.error(f"Service init error: {e}")
             db, client = None, None
-            return  # Stop execution if services fail
+            st.stop()  # Stop execution if services fail
 
         refine_prompt = f"Refine the following content based on instruction: '{refine_instruction.strip()}'\n\nContent:\n{st.session_state.output}"
         try:
