@@ -404,6 +404,7 @@ def init_services():
             embedding=embeddings,
             connection=connection,
             table_name="MARKETING_APP_CONTENT_GENERATION",
+            dimension=1536,
         )
     except Exception as e:
         st.error(f"HanaDB init error: {e}")
