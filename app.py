@@ -351,34 +351,64 @@ with right:
 # Services initialization (HANA + Azure)
 
 def init_services():
-    connection = dbapi.connect(
-        address=st.secrets["database"]["address"],
-        port=st.secrets["database"]["port"],
-        user=st.secrets["database"]["user"],
-        password=st.secrets["database"]["password"],
-        encrypt=True,
-        autocommit=True,
-        sslValidateCertificate=False,
-    )
+    # Check for secrets
+    if "database" in st.secrets and "address" in st.secrets["database"]:
+        st.write("Database secrets found.")
+    else:
+        st.error("Database secrets not found.")
+        raise Exception("Database secrets not found.")
 
-    client = AzureOpenAI(
-        azure_endpoint=st.secrets["azure"]["openai_endpoint"],
-        api_key=st.secrets["azure"]["api_key"],
-        api_version=st.secrets["azure"]["api_version"],
-    )
+    if "azure" in st.secrets and "openai_endpoint" in st.secrets["azure"]:
+        st.write("Azure secrets found.")
+    else:
+        st.error("Azure secrets not found.")
+        raise Exception("Azure secrets not found.")
 
-    embeddings = AzureOpenAIEmbeddings(
-        azure_deployment=st.secrets["azure"]["embeddings_deployment"],
-        openai_api_version=st.secrets["azure"]["embeddings_api_version"],
-        api_key=st.secrets["azure"]["api_key"],
-        azure_endpoint=st.secrets["azure"]["openai_endpoint"],
-    )
+    try:
+        connection = dbapi.connect(
+            address=st.secrets["database"]["address"],
+            port=st.secrets["database"]["port"],
+            user=st.secrets["database"]["user"],
+            password=st.secrets["database"]["password"],
+            encrypt=True,
+            autocommit=True,
+            sslValidateCertificate=False,
+        )
+    except Exception as e:
+        st.error(f"HANA connection error: {e}")
+        raise
 
-    db = HanaDB(
-        embedding=embeddings,
-        connection=connection,
-        table_name="MARKETING_APP_CONTENT_GENERATION",
-    )
+    try:
+        client = AzureOpenAI(
+            azure_endpoint=st.secrets["azure"]["openai_endpoint"],
+            api_key=st.secrets["azure"]["api_key"],
+            api_version=st.secrets["azure"]["api_version"],
+        )
+    except Exception as e:
+        st.error(f"Azure OpenAI client error: {e}")
+        raise
+
+    try:
+        embeddings = AzureOpenAIEmbeddings(
+            azure_deployment=st.secrets["azure"]["embeddings_deployment"],
+            openai_api_version=st.secrets["azure"]["embeddings_api_version"],
+            api_key=st.secrets["azure"]["api_key"],
+            azure_endpoint=st.secrets["azure"]["openai_endpoint"],
+        )
+    except Exception as e:
+        st.error(f"Azure Embeddings client error: {e}")
+        raise
+
+    try:
+        db = HanaDB(
+            embedding=embeddings,
+            connection=connection,
+            table_name="MARKETING_APP_CONTENT_GENERATION",
+        )
+    except Exception as e:
+        st.error(f"HanaDB init error: {e}")
+        raise
+
     return db, client
 
 # Retrieval / RAG logic (fixed hana_text initialization)
@@ -683,9 +713,12 @@ if generate_button and query:
         with st.spinner(f"Generating {content_type}..."):
             try:
                 db, client = init_services()
+                if not db or not client:
+                    raise Exception("Failed to initialize one or more services.")
             except Exception as e:
                 st.error(f"Service init error: {e}")
                 db, client = None, None
+                return  # Stop execution if services fail
 
             # Build full query (topic + additional)
             full_query = query.strip()
@@ -726,9 +759,12 @@ if apply_refine and st.session_state.output and refine_instruction and refine_in
     with st.spinner("Applying refinement..."):
         try:
             db, client = init_services()
+            if not db or not client:
+                raise Exception("Failed to initialize one or more services.")
         except Exception as e:
             st.error(f"Service init error: {e}")
             db, client = None, None
+            return  # Stop execution if services fail
 
         refine_prompt = f"Refine the following content based on instruction: '{refine_instruction.strip()}'\n\nContent:\n{st.session_state.output}"
         try:
